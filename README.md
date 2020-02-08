@@ -5,7 +5,7 @@ Used
 
 # Dagger2
 # Room
-# RxJava
+# RxJava2 and RxAndroid
 # AAC (Android Architecture Components)
 
 
