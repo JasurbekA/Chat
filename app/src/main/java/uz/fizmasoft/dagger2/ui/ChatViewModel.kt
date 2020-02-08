@@ -34,6 +34,7 @@ class ChatViewModel @Inject constructor(private val repository: ChatRepository) 
         val disposable = repository.fetchAllMessage()
             .subscribeOn(Schedulers.io())
             .observeOn(AndroidSchedulers.mainThread())
+            .doOnComplete { _loadMessages.value = LoadingMessagesState.OnIdle }
             .subscribe(
                 { _loadMessages.value = LoadingMessagesState.OnSuccess(it) },
                 { _loadMessages.value = LoadingMessagesState.OnError(it) }
@@ -48,7 +49,7 @@ class ChatViewModel @Inject constructor(private val repository: ChatRepository) 
             .doOnSubscribe { compositeDisposable.add(it) }
             .doOnSuccess { _insertMessage.value = InsertingMessagesState.OnSuccess(it) }
             .doOnError { _insertMessage.value = InsertingMessagesState.OnError(it) }
-            .doOnDispose { _insertMessage.value = InsertingMessagesState.OnIdle }
+            .doFinally { _insertMessage.value = InsertingMessagesState.OnIdle  }
             .subscribe()
 
     }
@@ -58,6 +59,7 @@ class ChatViewModel @Inject constructor(private val repository: ChatRepository) 
         val disposable = Completable.fromAction { repository.deleteAllMessage() }
             .subscribeOn(Schedulers.io())
             .observeOn(AndroidSchedulers.mainThread())
+            .doOnComplete { _deletingAllMessages.value = DeletingAllMessagesState.OnIdle  }
             .subscribe(
                 { _deletingAllMessages.value = DeletingAllMessagesState.OnSuccess },
                 { _deletingAllMessages.value = DeletingAllMessagesState.OnError(it) }
