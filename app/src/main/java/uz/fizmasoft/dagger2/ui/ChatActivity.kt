@@ -2,9 +2,11 @@ package uz.fizmasoft.dagger2.ui
 
 import android.os.Bundle
 import android.text.TextUtils
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProviders
 import com.obsez.android.lib.filechooser.ChooserDialog
 import dagger.android.support.DaggerAppCompatActivity
 import kotlinx.android.synthetic.main.activity_chat.*
@@ -13,6 +15,7 @@ import uz.fizmasoft.dagger2.data.model.Message
 import uz.fizmasoft.dagger2.util.ChatRvAdapter
 import uz.fizmasoft.dagger2.util.extentions.toEditable
 import uz.fizmasoft.dagger2.util.extentions.toast
+import java.io.File
 import javax.inject.Inject
 
 class ChatActivity : DaggerAppCompatActivity() {
@@ -35,6 +38,37 @@ class ChatActivity : DaggerAppCompatActivity() {
         init()
     }
 
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.menu_activity_chat, menu)
+        return super.onCreateOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.deleteAllMessages){
+            chatViewModel.deleteAllMessages()
+            observeMessagesDeleteState()
+            return true
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    private fun observeMessagesDeleteState() {
+        chatViewModel.deletingAllMessages.observe(
+            this,
+            Observer {
+                when (it) {
+                    is ChatViewModel.DeletingAllMessagesState.OnSuccess -> {
+                        toast("All messages have been deleted")
+                    }
+                    is ChatViewModel.DeletingAllMessagesState.OnError -> {
+                        toast("Error while deleting messages ${it.err.localizedMessage}")
+                    }
+                }
+            }
+        )
+    }
+
     private fun init() {
         initVM()
         initRV()
@@ -43,8 +77,10 @@ class ChatActivity : DaggerAppCompatActivity() {
     }
 
     private fun initVM() {
-        chatViewModel = ViewModelProviders.of(this, providerFactory)[ChatViewModel::class.java]
-        println(chatViewModel.forTesting())
+        chatViewModel = ViewModelProvider(
+            this,
+            providerFactory
+        )[ChatViewModel::class.java]
     }
 
     private fun initRV() {
@@ -53,22 +89,34 @@ class ChatActivity : DaggerAppCompatActivity() {
     }
 
     private fun setClickListener() {
-        btnSend.setOnClickListener {
-            if (!TextUtils.isEmpty(sendMessageContent.text)) {
-                chatViewModel.insertMessage(getMessage())
-                observeInsertingState()
-            }
-        }
-        fileChooser.setOnClickListener {
-            openFileChooser()
+        btnSend.setOnClickListener { sendBtnClick() }
+        fileChooser.setOnClickListener { openFileChooser() }
+    }
+
+    private fun sendBtnClick() {
+        if (!TextUtils.isEmpty(sendMessageContent.text)) {
+            chatViewModel.insertMessage(getMessage())
+            observeInsertingState()
         }
     }
 
+
     private fun openFileChooser() = chooserDialog.apply {
-        withChosenListener { path, _ -> filePath = path }
+        withChosenListener { path, file -> onFileChosen(path, file) }
         withOnCancelListener { it.cancel() }
         build()
         show()
+    }
+
+    private fun onFileChosen(path: String, file: File) {
+        filePath = path
+        chosen_file_container.visibility = View.VISIBLE
+        val fileName = "${file.name}.${file.extension}"
+        chosenFileName.text = fileName
+        removeChosenFile.setOnClickListener {
+            chosen_file_container.visibility = View.GONE
+            filePath = null
+        }
     }
 
 
@@ -99,13 +147,23 @@ class ChatActivity : DaggerAppCompatActivity() {
             Observer {
                 when (it) {
                     is ChatViewModel.InsertingMessagesState.OnSuccess -> {
-                        sendMessageContent.text = "".toEditable()
+                        onInsertSuccess()
                     }
                     is ChatViewModel.InsertingMessagesState.OnError -> {
                         toast("Error while inserting DB ${it.err.localizedMessage}")
                     }
                 }
             })
+    }
+
+    private fun onInsertSuccess() {
+        //Clear current message state elements
+        sendMessageContent.text = "".toEditable()
+        filePath?.let { chosen_file_container.visibility = View.GONE }
+        filePath = null
+        //scroll to the last message
+        println("checking the item count ${chatRvAdapter.itemCount}")
+        chatRecyclerView.scrollToPosition(chatRvAdapter.itemCount)
     }
 
 

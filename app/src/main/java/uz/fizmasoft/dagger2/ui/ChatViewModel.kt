@@ -3,6 +3,7 @@ package uz.fizmasoft.dagger2.ui
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import io.reactivex.Completable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
@@ -24,6 +25,10 @@ class ChatViewModel @Inject constructor(private val repository: ChatRepository) 
     val insertMessage: LiveData<InsertingMessagesState>
         get() = _insertMessage
 
+    private val _deletingAllMessages = MutableLiveData<DeletingAllMessagesState>()
+    val deletingAllMessages: LiveData<DeletingAllMessagesState>
+        get() = _deletingAllMessages
+
 
     fun loadMessages() {
         val disposable = repository.fetchAllMessage()
@@ -37,18 +42,29 @@ class ChatViewModel @Inject constructor(private val repository: ChatRepository) 
     }
 
     fun insertMessage(message: Message) {
-        val disposable = repository.insertMessage(message)
+        repository.insertMessage(message)
+            .subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+            .doOnSubscribe { compositeDisposable.add(it) }
+            .doOnSuccess { _insertMessage.value = InsertingMessagesState.OnSuccess(it) }
+            .doOnError { _insertMessage.value = InsertingMessagesState.OnError(it) }
+            .doOnDispose { _insertMessage.value = InsertingMessagesState.OnIdle }
+            .subscribe()
+
+    }
+
+    fun deleteAllMessages() {
+
+        val disposable = Completable.fromAction { repository.deleteAllMessage() }
             .subscribeOn(Schedulers.io())
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(
-                { _insertMessage.value = InsertingMessagesState.OnSuccess(it) },
-                { _insertMessage.value = InsertingMessagesState.OnError(it) }
+                { _deletingAllMessages.value = DeletingAllMessagesState.OnSuccess },
+                { _deletingAllMessages.value = DeletingAllMessagesState.OnError(it) }
             )
 
         compositeDisposable.add(disposable)
     }
-
-    fun forTesting() = "This message is coming from ChatViewModel"
 
     override fun onCleared() {
         super.onCleared()
@@ -58,11 +74,19 @@ class ChatViewModel @Inject constructor(private val repository: ChatRepository) 
     sealed class LoadingMessagesState {
         data class OnSuccess(val messages: List<Message>) : LoadingMessagesState()
         data class OnError(val err: Throwable) : LoadingMessagesState()
+        object OnIdle : LoadingMessagesState()
     }
 
     sealed class InsertingMessagesState {
         data class OnSuccess(val id: Long) : InsertingMessagesState()
         data class OnError(val err: Throwable) : InsertingMessagesState()
+        object OnIdle : InsertingMessagesState()
+    }
+
+    sealed class DeletingAllMessagesState {
+        object OnSuccess : DeletingAllMessagesState()
+        data class OnError(val err: Throwable) : DeletingAllMessagesState()
+        object OnIdle : DeletingAllMessagesState()
     }
 
 }

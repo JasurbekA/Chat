@@ -7,4 +7,5 @@ import javax.inject.Inject
 class ChatRepository @Inject constructor(private val chatDAO: ChatDAO) {
     fun insertMessage(message: Message) = chatDAO.insertMessage(message)
     fun fetchAllMessage() = chatDAO.getAllMessages()
+    fun deleteAllMessage() = chatDAO.deleteAllMessages()
 }
