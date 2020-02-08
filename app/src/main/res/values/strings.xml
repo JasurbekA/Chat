@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Dagger2</string>
+    <string name="main_page_text">Dagger Dependencies Injection example</string>
+</resources>
